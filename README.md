@@ -12,6 +12,8 @@ The script follows the steps outlined in the BSP Building Guide. It downloads th
 
 At the moment the script will not build the Linux kernel, initramfs and grub images for you - you'll need to provide those as command line parameters. If there's an interest among the community, such functionality can be added.
 
+For BSP v0.8.0 you can download the respective CapsuleApp.efi program for flashing the outcome of this script here: http://downloadmirror.intel.com/23197/eng/CapsuleApp.efi
+
 Usage:
 ------
 
