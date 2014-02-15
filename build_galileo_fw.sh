@@ -31,68 +31,64 @@
 # To avoid error checking for simple cases
 set -e
 
-VERSION="1.0.0"
+VERSION="2.0.0"
 
-### Configuration items
-# The following two are for BSP v0.8.0
-BSP_7Z_PKG_URL="http://downloadmirror.intel.com/23197/eng/Board_Support_Package_Sources_for_Intel_Quark_v0.8.0.7z"
-BSP_7Z_PKG_FNAME="Board_Support_Package_Sources_for_Intel_Quark_v0.8.0.7z"
-# The following two are for BSP v0.7.5
-#BSP_7Z_PKG_URL="http://downloadmirror.intel.com/23171/eng/Board_Support_Package_Sources_for_Intel_Quark_v0.7.5.7z"
-#BSP_7Z_PKG_FNAME="Board_Support_Package_Sources_for_Intel_Quark_v0.7.5.7z"
+# This one sets all variables we use
+# Precondition: all variables have validated values
+set_variables() {
+    ### Configuration items
+    case "$TARGET_BSP_VER" in
+        0.9.0)
+                BSP_7Z_PKG_URL="http://downloadmirror.intel.com/23197/eng/Board_Support_Package_Sources_for_Intel_Quark_v0.8.0.7z"
+                BSP_7Z_PKG_FNAME="Board_Support_Package_Sources_for_Intel_Quark_v0.8.0.7z"
+                # EDK tarball uses dashes, but the dir inside is with underscores,
+                # therefore we have to use different globs
+                EDK_PKG_GLOB="Quark-EDKII*"
+                EDK_DIR_GLOB="Quark_EDKII*"
+                EDK_SYMLINK_NAME="Quark_EDKII"
+                ;;
+        0.7.5)
+                BSP_7Z_PKG_URL="http://downloadmirror.intel.com/23171/eng/Board_Support_Package_Sources_for_Intel_Quark_v0.7.5.7z"
+                BSP_7Z_PKG_FNAME="Board_Support_Package_Sources_for_Intel_Quark_v0.7.5.7z"
+                EDK_PKG_GLOB="*EDKII*"
+                EDK_DIR_GLOB="*EDK2*"
+                EDK_SYMLINK_NAME="clanton_peak_EDK2"
+                ;;
+    esac
 
-SYSIMAGE_DIR_GLOB="sysimage*"
-SYSIMAGE_REL_DIR_GLOB="sysimage*release"
+    SYSIMAGE_DIR_GLOB="sysimage*"
+    SYSIMAGE_REL_DIR_GLOB="sysimage*release"
 
-SPITOOLS_DIR_GLOB="spi-flash-tools*"
+    SPITOOLS_DIR_GLOB="spi-flash-tools*"
 
-# EDK tarball uses dashes, but the dir inside is with underscores,
-# therefore we have to use different globs
-# The following three are for BSP v0.8.0
-EDK_PKG_GLOB="Quark-EDKII*"
-EDK_DIR_GLOB="Quark_EDKII*"
-EDK_SYMLINK_NAME="Quark_EDKII"
-# The following three are for BSP v0.7.5
-#EDK_PKG_GLOB="*EDKII*"
-#EDK_DIR_GLOB="*EDK2*"
-#EDK_SYMLINK_NAME="clanton_peak_EDK2"
+    # Various filenames used throughout the process
+    TARBALL_EXT="tar.gz"
+    FW_BIN_NOPDATA_FNAME="Flash-missingPDAT.bin"
+    FW_BIN_PDATA_FNAME="Flash+PlatformData.bin"
+    FW_CAP_FNAME="Flash-missingPDAT.cap"
+    PDATA_INI_FNAME="my-platform-data.ini"
 
-### You're unlikely to need to edit anything below this line,
-### unless you know what you're doing
+    # Directory where all actions will take place
+    BSP_DIR="bsp_src"
+    # Absolute path to the script's directory
+    BASEDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-# Various filenames used throughout the process
-TARBALL_EXT="tar.gz"
-FW_BIN_NOPDATA_FNAME="Flash-missingPDAT.bin"
-FW_BIN_PDATA_FNAME="Flash+PlatformData.bin"
-FW_CAP_FNAME="Flash-missingPDAT.cap"
-PDATA_INI_FNAME="my-platform-data.ini"
-BZIMAGE_FNAME=""
-INITRAMFS_FNAME=""
-GRUB_FNAME=""
+    # Galileo platform data values for bin image
+    # As per the BSP Building Guide
+    G_PLTF_TYPE_DVALUE="6"
+    G_MRC_PARAMS_ID="6"
+    G_MRC_PARAMS_DVALUE="MRC/kipsbay-fabD.v1.bin"
+    # Your board's MAC is in G_MAC_0_DVALUE
+    # This one isn't used on Galileo
+    G_MAC_1_DVALUE="02FFFFFFFF01"
 
-# Firmware file type we're going to build, cap, bin or all
-TARGET="cap"
-# Directory where all actions will take place
-BSP_DIR="bsp_src"
-# Absolute path to the script's directory
-BASEDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-
-# Galileo platform data values for bin image
-# As per the BSP Building Guide
-G_PLTF_TYPE_DVALUE="6"
-G_MRC_PARAMS_ID="6"
-G_MRC_PARAMS_DVALUE="MRC/kipsbay-fabD.v1.bin"
-# This is your board's MAC
-G_MAC_0_DVALUE=""
-# This one isn't used on Galileo
-G_MAC_1_DVALUE="02FFFFFFFF01"
-
-# Auxilliary tools used by the script
-SZ_EXE=$( which 7z )
-WGET_EXE=$( which wget )
-TAR_EXE=$( which tar )
-SED_EXE=$( which sed )
-AWK_EXE=$( which awk )
+    # Auxilliary tools used by the script
+    SZ_EXE=$( which 7z )
+    WGET_EXE=$( which wget )
+    TAR_EXE=$( which tar )
+    SED_EXE=$( which sed )
+    AWK_EXE=$( which awk )
+}
 
 check_prerequisites() {
     for tool in $SZ_EXE $WGET_EXE $TAR_EXE $SED_EXE $AWK_EXE; do
@@ -121,10 +117,11 @@ usage() {
     cat <<EOFUSAGE
 Usage: $0 <options>
 Options:
+    -b <target BSP version, 0.7.5|0.9.0> (required)
     -k <path to bzImage produced by "bitbake image-spi"> (required)
     -i <path to image-spi-clanton.cpio.lzma produced by "bitbake image-spi"> (required)
     -g <path to grub.efi produced by "bitbake image-spi"> (required)
-    -t <target to build, cap|bin|all> (optional, default is "cap")
+    -t <target to build, cap|bin|all> (required)
     -m <your board's MAC address from the sticker,e.g. 001320FF164F> (required for "bin" and "all" targets)
     -h this message
     -v version
@@ -137,7 +134,7 @@ version() {
 
 parse_opts() {
     OPTIND=1
-    while getopts "hvk:i:g:t:m:" opt; do
+    while getopts "hvk:i:g:t:m:b:" opt; do
         case "$opt" in
             h)
                 usage
@@ -161,6 +158,9 @@ parse_opts() {
                 ;;
             m)
                 G_MAC_0_DVALUE="$OPTARG"
+                ;;
+            b)
+                TARGET_BSP_VER="$OPTARG"
                 ;;
             ?)
                 usage
@@ -204,6 +204,12 @@ parse_opts() {
 
     # Remove colons from MAC address, if any
     G_MAC_0_DVALUE=$( echo $G_MAC_0_DVALUE|sed -e 's/://g' )
+
+    if [ \( "$TARGET_BSP_VER" != "0.7.5" -a "$TARGET_BSP_VER" != "0.9.0" \) -o -z "$TARGET_BSP_VER" ]; then
+        echo "### Valid target BSP version is required, cannot proceed"
+        usage
+        exit 1
+    fi
 }
 
 download_package() {
@@ -254,6 +260,7 @@ build_file_structure() {
 
     # Copies image-spi files into our build dir
     # Precondition: files exist and readable
+    echo Copying
     cp $BZIMAGE_FNAME $BASEDIR/$BSP_DIR/
     cp $INITRAMFS_FNAME $BASEDIR/$BSP_DIR/
     cp $GRUB_FNAME $BASEDIR/$BSP_DIR/
@@ -354,11 +361,12 @@ build_fw_bin() {
 
 ### Main
 parse_opts "$@"
+set_variables
 check_prerequisites
 download_package
 unpack_package
 unpack_tools
 build_file_structure
-generate_configs $TARGET
-build_fw $TARGET
+generate_configs "$TARGET"
+build_fw "$TARGET"
 
