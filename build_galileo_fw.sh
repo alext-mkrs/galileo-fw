@@ -31,28 +31,27 @@
 # To avoid error checking for simple cases
 set -e
 
-VERSION="2.0.0"
+VERSION="2.1.0"
 
 # This one sets all variables we use
 # Precondition: all variables have validated values
 set_variables() {
     ### Configuration items
     case "$TARGET_BSP_VER" in
-        0.9.0)
-                BSP_7Z_PKG_URL="http://downloadmirror.intel.com/23197/eng/Board_Support_Package_Sources_for_Intel_Quark_v0.8.0.7z"
-                BSP_7Z_PKG_FNAME="Board_Support_Package_Sources_for_Intel_Quark_v0.8.0.7z"
-                # EDK tarball uses dashes, but the dir inside is with underscores,
-                # therefore we have to use different globs
-                EDK_PKG_GLOB="Quark-EDKII*"
-                EDK_DIR_GLOB="Quark_EDKII*"
-                EDK_SYMLINK_NAME="Quark_EDKII"
-                ;;
         0.7.5)
                 BSP_7Z_PKG_URL="http://downloadmirror.intel.com/23171/eng/Board_Support_Package_Sources_for_Intel_Quark_v0.7.5.7z"
                 BSP_7Z_PKG_FNAME="Board_Support_Package_Sources_for_Intel_Quark_v0.7.5.7z"
                 EDK_PKG_GLOB="*EDKII*"
                 EDK_DIR_GLOB="*EDK2*"
                 EDK_SYMLINK_NAME="clanton_peak_EDK2"
+                ;;
+        0.9.0)
+                BSP_7Z_PKG_URL="http://downloadmirror.intel.com/23197/eng/Board_Support_Package_Sources_for_Intel_Quark_v0.9.0.7z"
+                BSP_7Z_PKG_FNAME="Board_Support_Package_Sources_for_Intel_Quark_v0.9.0.7z"
+                EDK_PKG_GLOB="Quark_EDKII*"
+                EDK_DIR_GLOB="Quark_EDKII*"
+                # We don't need this for 0.9.0, leaving here for consistency
+                # EDK_SYMLINK_NAME="Quark_EDKII"
                 ;;
     esac
 
@@ -69,7 +68,7 @@ set_variables() {
     PDATA_INI_FNAME="my-platform-data.ini"
 
     # Directory where all actions will take place
-    BSP_DIR="bsp_src"
+    BSP_DIR="bsp_src_${TARGET_BSP_VER}"
     # Absolute path to the script's directory
     BASEDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
@@ -255,12 +254,19 @@ unpack_tools() {
 build_file_structure() {
     cd $BASEDIR/$BSP_DIR
     # Ensure file paths in sysimage's layout.conf are correct
-    # This takes care about the majority of them
-    ln -f -s $EDK_DIR_GLOB/ $EDK_SYMLINK_NAME
+    case "$TARGET_BSP_VER" in
+        0.7.5)
+                # In 0.7.5 we do it manually
+                ln -f -s $EDK_DIR_GLOB/ $EDK_SYMLINK_NAME
+                ;;
+        0.9.0)
+                # In 0.9.0 we have a script, which does it for us
+                ./$SYSIMAGE_DIR_GLOB/create_symlinks.sh
+                ;;
+    esac
 
     # Copies image-spi files into our build dir
     # Precondition: files exist and readable
-    echo Copying
     cp $BZIMAGE_FNAME $BASEDIR/$BSP_DIR/
     cp $INITRAMFS_FNAME $BASEDIR/$BSP_DIR/
     cp $GRUB_FNAME $BASEDIR/$BSP_DIR/
@@ -274,11 +280,25 @@ generate_configs() {
     # we will need to add a "meta-clanton" symlink similar to EDK
     # and probably adjust this piece
     cd $BASEDIR/$BSP_DIR/$SYSIMAGE_DIR_GLOB/$SYSIMAGE_REL_DIR_GLOB/
-    sed -i.orig -r \
-        -e 's#^item_file=.+bzImage#item_file=\.\./\.\./bzImage#' \
-        -e 's#^item_file=.+image-spi-clanton.cpio.lzma#item_file=\.\./\.\./image-spi-clanton.cpio.lzma#' \
-        -e 's#^item_file=.+grub.efi#item_file=\.\./\.\./grub.efi#' \
-        layout.conf
+
+    # It's rather an overkill, 0.7.5 and 0.9.0 share all but one line,
+    # but this is a forward-looking setup, assuming they'll change more things in the future
+    case "$TARGET_BSP_VER" in
+        0.7.5)
+                sed -i.orig -r \
+                    -e 's#^item_file=.+bzImage#item_file=\.\./\.\./bzImage#' \
+                    -e 's#^item_file=.+image-spi-clanton.cpio.lzma#item_file=\.\./\.\./image-spi-clanton.cpio.lzma#' \
+                    -e 's#^item_file=.+grub.efi#item_file=\.\./\.\./grub.efi#' \
+                    layout.conf
+                ;;
+        0.9.0)
+                sed -i.orig -r \
+                    -e 's#^item_file=.+bzImage#item_file=\.\./\.\./bzImage#' \
+                    -e 's#^item_file=.+image-spi-clanton.cpio.lzma#item_file=\.\./\.\./image-spi-galileo-clanton.cpio.lzma#' \
+                    -e 's#^item_file=.+grub.efi#item_file=\.\./\.\./grub.efi#' \
+                    layout.conf
+                ;;
+        esac
 
     if [ "$1" == "bin" -o "$1" == "all" ]; then
         echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
@@ -358,6 +378,42 @@ build_fw_bin() {
     fi
 }
 
+build_edk_fw() {
+    echo "### Building EDK firmware and CapsuleApp.efi..."
+    cd $BASEDIR/$BSP_DIR/$EDK_DIR_GLOB/
+    ./svn_setup.py
+    svn update
+    # BSP Build Guide has buildallconfigs as the default,
+    # but this doesn't really make sense - it builds 3 surplus configs we'll never use
+    #./buildallconfigs.sh GCC47 QuarkPlatform
+    # The below is based on the buildallconfigs' contents,
+    # but builds only PLAIN RELEASE config.
+    GCC_VER=""
+    GCC_VER=$( gcc --version |head -1|sed -r -e 's#.*([[:digit:]]\.[[:digit:]])\.[[:digit:]].*#\1#' -e 's/\.//' )
+    if [ -z "$GCC_VER" ]; then
+        echo "### Cannot determine GCC version, cannot proceed!"
+        exit 1
+    fi
+
+    case "$GCC_VER" in
+        43|44|45|46|47)
+                        echo "### Supported GCC version found, proceeding..."
+                        ;;
+                     *)
+                        read -n 1 \
+                             -p "### Attention, unsupported GCC version '$GCC_VER' detected, press Ctrl+C if you DO NOT want to proceed, any other key to continue!"
+                        ;;
+    esac
+
+    ./quarkbuild.sh -r32 "GCC${GCC_VER}" QuarkPlatform
+    cd Build/*Platform/
+    mkdir -p PLAIN/
+    ln -s RELEASE_GCC* RELEASE_GCC
+    rm -rf PLAIN/*
+    mv RELEASE_GCC* PLAIN/
+    cp PLAIN/RELEASE_GCC*/FV/Applications/CapsuleApp.efi $BASEDIR
+    echo "### Copied CapsuleApp.efi to $BASEDIR successfully!"
+}
 
 ### Main
 parse_opts "$@"
@@ -366,6 +422,9 @@ check_prerequisites
 download_package
 unpack_package
 unpack_tools
+if [ "$TARGET_BSP_VER" == "0.9.0" ]; then
+    build_edk_fw
+fi
 build_file_structure
 generate_configs "$TARGET"
 build_fw "$TARGET"
