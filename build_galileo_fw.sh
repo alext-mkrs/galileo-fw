@@ -31,7 +31,7 @@
 # To avoid error checking for simple cases
 set -e
 
-VERSION="2.1.0"
+VERSION="2.2.0"
 
 # This one sets all variables we use
 # Precondition: all variables have validated values
@@ -45,12 +45,12 @@ set_variables() {
                 EDK_DIR_GLOB="*EDK2*"
                 EDK_SYMLINK_NAME="clanton_peak_EDK2"
                 ;;
-        0.9.0)
-                BSP_7Z_PKG_URL="http://downloadmirror.intel.com/23197/eng/Board_Support_Package_Sources_for_Intel_Quark_v0.9.0.7z"
-                BSP_7Z_PKG_FNAME="Board_Support_Package_Sources_for_Intel_Quark_v0.9.0.7z"
+        1.0.0)
+                BSP_7Z_PKG_URL="http://downloadmirror.intel.com/23197/eng/Board_Support_Package_Sources_for_Intel_Quark_v1.0.0.7z"
+                BSP_7Z_PKG_FNAME="Board_Support_Package_Sources_for_Intel_Quark_v1.0.0.7z"
                 EDK_PKG_GLOB="Quark_EDKII*"
                 EDK_DIR_GLOB="Quark_EDKII*"
-                # We don't need this for 0.9.0, leaving here for consistency
+                # We don't need this for 1.0.0, leaving here for consistency
                 # EDK_SYMLINK_NAME="Quark_EDKII"
                 ;;
     esac
@@ -116,7 +116,7 @@ usage() {
     cat <<EOFUSAGE
 Usage: $0 <options>
 Options:
-    -b <target BSP version, 0.7.5|0.9.0> (required)
+    -b <target BSP version, 0.7.5|1.0.0> (required)
     -k <path to bzImage produced by "bitbake image-spi"> (required)
     -i <path to image-spi-clanton.cpio.lzma produced by "bitbake image-spi"> (required)
     -g <path to grub.efi produced by "bitbake image-spi"> (required)
@@ -204,7 +204,7 @@ parse_opts() {
     # Remove colons from MAC address, if any
     G_MAC_0_DVALUE=$( echo $G_MAC_0_DVALUE|sed -e 's/://g' )
 
-    if [ \( "$TARGET_BSP_VER" != "0.7.5" -a "$TARGET_BSP_VER" != "0.9.0" \) -o -z "$TARGET_BSP_VER" ]; then
+    if [ \( "$TARGET_BSP_VER" != "0.7.5" -a "$TARGET_BSP_VER" != "1.0.0" \) -o -z "$TARGET_BSP_VER" ]; then
         echo "### Valid target BSP version is required, cannot proceed"
         usage
         exit 1
@@ -259,8 +259,8 @@ build_file_structure() {
                 # In 0.7.5 we do it manually
                 ln -f -s $EDK_DIR_GLOB/ $EDK_SYMLINK_NAME
                 ;;
-        0.9.0)
-                # In 0.9.0 we have a script, which does it for us
+        1.0.0)
+                # In 1.0.0 we have a script, which does it for us
                 ./$SYSIMAGE_DIR_GLOB/create_symlinks.sh
                 ;;
     esac
@@ -281,7 +281,7 @@ generate_configs() {
     # and probably adjust this piece
     cd $BASEDIR/$BSP_DIR/$SYSIMAGE_DIR_GLOB/$SYSIMAGE_REL_DIR_GLOB/
 
-    # It's rather an overkill, 0.7.5 and 0.9.0 share all but one line,
+    # It's rather an overkill, 0.7.5 and 1.0.0 share all but one line,
     # but this is a forward-looking setup, assuming they'll change more things in the future
     case "$TARGET_BSP_VER" in
         0.7.5)
@@ -291,7 +291,7 @@ generate_configs() {
                     -e 's#^item_file=.+grub.efi#item_file=\.\./\.\./grub.efi#' \
                     layout.conf
                 ;;
-        0.9.0)
+        1.0.0)
                 sed -i.orig -r \
                     -e 's#^item_file=.+bzImage#item_file=\.\./\.\./bzImage#' \
                     -e 's#^item_file=.+image-spi-clanton.cpio.lzma#item_file=\.\./\.\./image-spi-galileo-clanton.cpio.lzma#' \
@@ -422,7 +422,7 @@ check_prerequisites
 download_package
 unpack_package
 unpack_tools
-if [ "$TARGET_BSP_VER" == "0.9.0" ]; then
+if [ "$TARGET_BSP_VER" == "1.0.0" ]; then
     build_edk_fw
 fi
 build_file_structure
