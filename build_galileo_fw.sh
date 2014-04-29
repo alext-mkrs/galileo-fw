@@ -361,7 +361,7 @@ build_fw_bin() {
     echo "### Building binary file..."
     cd $BASEDIR/$BSP_DIR/$SYSIMAGE_DIR_GLOB/$SYSIMAGE_REL_DIR_GLOB/
 
-    ../../$SPITOOLS_DIR_GLOB/Makefile
+    ../../$SPITOOLS_DIR_GLOB/Makefile all
     echo "### ...done!"
     echo "### Adding platform data to the file..."
     cd $BASEDIR/$BSP_DIR/$SPITOOLS_DIR_GLOB/platform-data/
