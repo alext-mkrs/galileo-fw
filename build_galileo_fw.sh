@@ -31,7 +31,7 @@
 # To avoid error checking for simple cases
 set -e
 
-VERSION="2.2.0"
+VERSION="2.3.0"
 
 # This one sets all variables we use
 # Precondition: all variables have validated values
