@@ -3,6 +3,8 @@ galileo-fw
 
 Scripts for automated building of Galieo board firmware.
 
+**Given that there's no longer that much of a demand for this automated solution seen in the Galileo Community and official images are now not lagging behind the BSP updates as it was at the beginning - I don't see a need to update this project any more. Feel free to fork it for your needs or contact me by submitting a bug/feature request here or in the Galileo Community forum at https://communities.intel.com/community/makers/galileo**
+
 Description:
 ------------
 
