@@ -2,7 +2,7 @@
 #
 # The MIT License (MIT)
 #
-# Copyright (c) 2013 Alex T <alext.mkrs@gmail.com>
+# Copyright (c) 2013-2014 Alex T <alext.mkrs@gmail.com>
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -31,29 +31,18 @@
 # To avoid error checking for simple cases
 set -e
 
-VERSION="2.3.0"
+VERSION="3.0.0"
 
 # This one sets all variables we use
 # Precondition: all variables have validated values
 set_variables() {
     ### Configuration items
-    case "$TARGET_BSP_VER" in
-        0.7.5)
-                BSP_7Z_PKG_URL="http://downloadmirror.intel.com/23171/eng/Board_Support_Package_Sources_for_Intel_Quark_v0.7.5.7z"
-                BSP_7Z_PKG_FNAME="Board_Support_Package_Sources_for_Intel_Quark_v0.7.5.7z"
-                EDK_PKG_GLOB="*EDKII*"
-                EDK_DIR_GLOB="*EDK2*"
-                EDK_SYMLINK_NAME="clanton_peak_EDK2"
-                ;;
-        1.0.1)
-                BSP_7Z_PKG_URL="http://downloadmirror.intel.com/23197/eng/Board_Support_Package_Sources_for_Intel_Quark_v1.0.1.7z"
-                BSP_7Z_PKG_FNAME="Board_Support_Package_Sources_for_Intel_Quark_v1.0.1.7z"
-                EDK_PKG_GLOB="Quark_EDKII*"
-                EDK_DIR_GLOB="Quark_EDKII*"
-                # We don't need this for 1.0.x, leaving here for consistency
-                # EDK_SYMLINK_NAME="Quark_EDKII"
-                ;;
-    esac
+    BSP_7Z_PKG_URL="http://downloadmirror.intel.com/23197/eng/Board_Support_Package_Sources_for_Intel_Quark_v1.0.1.7z"
+    BSP_7Z_PKG_FNAME="Board_Support_Package_Sources_for_Intel_Quark_v1.0.1.7z"
+    EDK_UPDATED_TARBALL_URL="http://downloadmirror.intel.com/23962/eng/Quark_EDKII_v1.0.2.tar.gz"
+    EDK_UPDATE_TARBALL_FNAME="Quark_EDKII_v1.0.2.tar.gz"
+    EDK_PKG_GLOB="Quark_EDKII*"
+    EDK_DIR_GLOB="Quark_EDKII*"
 
     SYSIMAGE_DIR_GLOB="sysimage*"
     SYSIMAGE_REL_DIR_GLOB="sysimage*release"
@@ -116,7 +105,7 @@ usage() {
     cat <<EOFUSAGE
 Usage: $0 <options>
 Options:
-    -b <target BSP version, 0.7.5|1.0.1> (required)
+    -b <target BSP version, 1.0.1 by default>
     -k <path to bzImage produced by "bitbake image-spi"> (required)
     -i <path to image-spi-clanton.cpio.lzma produced by "bitbake image-spi"> (required)
     -g <path to grub.efi produced by "bitbake image-spi"> (required)
@@ -204,10 +193,9 @@ parse_opts() {
     # Remove colons from MAC address, if any
     G_MAC_0_DVALUE=$( echo $G_MAC_0_DVALUE|sed -e 's/://g' )
 
-    if [ \( "$TARGET_BSP_VER" != "0.7.5" -a "$TARGET_BSP_VER" != "1.0.1" \) -o -z "$TARGET_BSP_VER" ]; then
-        echo "### Valid target BSP version is required, cannot proceed"
-        usage
-        exit 1
+    if [ x"$TARGET_BSP_VER" != x"1.0.1" ]; then
+        echo "### Invalid or empty BSP target version, using 1.0.1"
+        TARGET_BSP_VER="1.0.1"
     fi
 }
 
@@ -254,16 +242,8 @@ unpack_tools() {
 build_file_structure() {
     cd $BASEDIR/$BSP_DIR
     # Ensure file paths in sysimage's layout.conf are correct
-    case "$TARGET_BSP_VER" in
-        0.7.5)
-                # In 0.7.5 we do it manually
-                ln -f -s $EDK_DIR_GLOB/ $EDK_SYMLINK_NAME
-                ;;
-        1.0.1)
-                # In 1.0.1 we have a script, which does it for us
-                ./$SYSIMAGE_DIR_GLOB/create_symlinks.sh
-                ;;
-    esac
+    # In 1.0.1 we have a script, which does it for us
+    ./$SYSIMAGE_DIR_GLOB/create_symlinks.sh
 
     # Copies image-spi files into our build dir
     # Precondition: files exist and readable
@@ -281,24 +261,11 @@ generate_configs() {
     # and probably adjust this piece
     cd $BASEDIR/$BSP_DIR/$SYSIMAGE_DIR_GLOB/$SYSIMAGE_REL_DIR_GLOB/
 
-    # It's rather an overkill, 0.7.5 and 1.0.1 share all but one line,
-    # but this is a forward-looking setup, assuming they'll change more things in the future
-    case "$TARGET_BSP_VER" in
-        0.7.5)
-                sed -i.orig -r \
-                    -e 's#^item_file=.+bzImage#item_file=\.\./\.\./bzImage#' \
-                    -e 's#^item_file=.+image-spi-clanton.cpio.lzma#item_file=\.\./\.\./image-spi-clanton.cpio.lzma#' \
-                    -e 's#^item_file=.+grub.efi#item_file=\.\./\.\./grub.efi#' \
-                    layout.conf
-                ;;
-        1.0.1)
-                sed -i.orig -r \
-                    -e 's#^item_file=.+bzImage#item_file=\.\./\.\./bzImage#' \
-                    -e 's#^item_file=.+image-spi-clanton.cpio.lzma#item_file=\.\./\.\./image-spi-galileo-clanton.cpio.lzma#' \
-                    -e 's#^item_file=.+grub.efi#item_file=\.\./\.\./grub.efi#' \
-                    layout.conf
-                ;;
-        esac
+    sed -i.orig -r \
+        -e 's#^item_file=.+bzImage#item_file=\.\./\.\./bzImage#' \
+        -e 's#^item_file=.+image-spi-clanton.cpio.lzma#item_file=\.\./\.\./image-spi-galileo-clanton.cpio.lzma#' \
+        -e 's#^item_file=.+grub.efi#item_file=\.\./\.\./grub.efi#' \
+        layout.conf
 
     if [ "$1" == "bin" -o "$1" == "all" ]; then
         echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
@@ -415,16 +382,28 @@ build_edk_fw() {
     echo "### Copied CapsuleApp.efi to $BASEDIR successfully!"
 }
 
+download_updated_edk_tarball() {
+    cd $BASEDIR/$BSP_DIR
+    rm $EDK_PKG_GLOB.$TARBALL_EXT
+    # Download Updated EDK package
+    echo "### Downloading updated EDK tarball..."
+    $WGET_EXE $EDK_UPDATED_TARBALL_URL
+    if [ $? -ne 0 ]; then
+        echo "### Couldn't download the updated EDK tarball from '$EDK_UPDATED_TARBALL_URL'"
+        exit 1
+    fi
+    echo "### Downloaded successfully!"
+}
+
 ### Main
 parse_opts "$@"
 set_variables
 check_prerequisites
 download_package
 unpack_package
+download_updated_edk_tarball
 unpack_tools
-if [ "$TARGET_BSP_VER" == "1.0.1" ]; then
-    build_edk_fw
-fi
+build_edk_fw
 build_file_structure
 generate_configs "$TARGET"
 build_fw "$TARGET"
