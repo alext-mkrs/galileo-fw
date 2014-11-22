@@ -25,7 +25,6 @@ build_galileo_fw.sh -k ./path/to/bzImage \
                     -i ./path/to/image-spi-clanton.cpio.lzma \
                     -g ./path/to/grub.efi \
                     -t all \
-                    -b 1.0.1 \
                     -m 00:11:dd:ff:aa:55
 ```
 
